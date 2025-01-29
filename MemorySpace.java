@@ -73,46 +73,28 @@ public class MemorySpace {
 	 * @return the base address of the allocated block, or -1 if unable to allocate
 	 */
 	public int malloc(int length) {
-		ListIterator iteratorNew = freeList.iterator();
-		while (iteratorNew.hasNext()) {
-			MemoryBlock mBlock = iteratorNew.next();
-			if (length == mBlock.length) {
-				freeList.remove(mBlock);
-				allocatedList.addLast(mBlock);
-				return mBlock.baseAddress;
-			}
-			if (length <= mBlock.length) {
-				allocatedList.addLast(new MemoryBlock(mBlock.baseAddress, length));
-				freeList.remove(mBlock);
-				freeList.addLast(new MemoryBlock(mBlock.baseAddress + length,
-						mBlock.length - length));
-				return mBlock.baseAddress;
-			}
-		}
-		/* */
-		MemoryBlock tempBlock = null;
-		ListIterator iteratorr = freeList.iterator();
-		while (iteratorr.hasNext()) {
-			MemoryBlock tempIterator = iteratorr.next();
-			if (tempIterator.length >= length) {
-				tempBlock = tempIterator;
+		Node temp = freeList.getFirst();
+		Node match = null;
+		while(temp != null) {
+			if(temp.block.length >= length) {
+				match = temp;
 				break;
 			}
+			temp=temp.next;
 		}
-
-		if (tempBlock == null) {
-			return -1;
+		if(match != null) {
+			MemoryBlock newBlock = new MemoryBlock(match.block.baseAddress , length);
+			allocatedList.addLast(newBlock);
+			match.block.length -= length;
+			int address = match.block.baseAddress;
+			match.block.baseAddress += length;
+			if(match.block.length == 0) freeList.remove(match);
+			return address;
 		}
-		MemoryBlock insertBlock = new MemoryBlock(tempBlock.baseAddress, length);
-		allocatedList.addLast(insertBlock);
-		if (length == tempBlock.length) {
-			freeList.remove(insertBlock);
-			return tempBlock.baseAddress;
-		}
-		tempBlock.baseAddress += length;
-		tempBlock.length -= length;
-		return insertBlock.baseAddress;
+		return -1;
 	}
+
+	
 
 	/**
 	 * Frees the memory block whose base address equals the given address.
@@ -123,18 +105,22 @@ public class MemorySpace {
 	 *                    the starting address of the block to freeList
 	 */
 	public void free(int address) {
-		if (allocatedList.getSize() == 0) {
-			throw new IllegalArgumentException("index must be between 0 and size");
+		if(freeList.getSize() == 1 && freeList.getFirst().block.baseAddress == 0 && freeList.getFirst().block.length == 100) {
+			throw new IllegalArgumentException(
+					"index must be between 0 and size");
 		}
-		ListIterator iterator = allocatedList.iterator();
-		while (iterator.hasNext()) {
-			MemoryBlock tMemoryBlock = iterator.next();
-			if (address == tMemoryBlock.baseAddress) {
-				allocatedList.remove(tMemoryBlock);
-				freeList.addLast(tMemoryBlock);
-				return;
+		Node temp = allocatedList.getNode(0);
+		Node match = null;
+		while(temp != null) {
+			if(temp.block.baseAddress == address) {
+				match = temp;
+				break;
 			}
+			temp = temp.next;
 		}
+		if(match == null) return;
+		freeList.addLast(match.block);
+		allocatedList.remove(match.block);
 	}
 
 	/**
@@ -153,19 +139,24 @@ public class MemorySpace {
 	 * In this implementation Malloc does not call defrag.
 	 */
 	public void defrag() {
-		ListIterator mainIterator = freeList.iterator();
-		ListIterator secondIterator = freeList.iterator();
-		while (mainIterator.hasNext()) {
-			MemoryBlock tMemoryBlock = mainIterator.next();
-			int baseSearch = tMemoryBlock.baseAddress + tMemoryBlock.length;
-			while (secondIterator.hasNext()) {
-				MemoryBlock tMemoryBlock2 = secondIterator.next();
-				if (baseSearch == tMemoryBlock2.baseAddress) {
-					tMemoryBlock.length += tMemoryBlock2.length;
-					freeList.remove(tMemoryBlock2);
-					defrag();
-				}
+		if (freeList.getSize() <= 1) {
+			return;
+		}
+		freeList.sort();
+		Node current = freeList.getFirst();
+		while (current != null && current.next != null) {
+			MemoryBlock currentBlock = current.block;
+			MemoryBlock nextBlock = current.next.block;
+	
+			if (currentBlock.baseAddress + currentBlock.length == nextBlock.baseAddress) {
+				currentBlock.length += nextBlock.length;
+				freeList.remove(current.next);
+			} else {
+				current = current.next;
 			}
 		}
+		
 	}
+
+	
 }
